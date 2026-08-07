@@ -1,4 +1,9 @@
-﻿# Senviok Go SDK
+﻿> **Deprecated** — this repository has been superseded. The official Go SDK now lives at
+> **[github.com/senviok/senviok](https://github.com/senviok/senviok)** and is released as
+> `v0.1.0`. Install it with `go get github.com/senviok/senviok`. This repo is kept for
+> historical reference only and will not receive updates.
+
+# Senviok Go SDK
 
 Official Go client for the [Senviok](https://senviok.live) messaging API —
 email, SMS and WhatsApp, plus the resources around them. It mirrors the official
@@ -14,7 +19,7 @@ JavaScript and Python SDKs' public facade 1:1, so all three stay in lockstep.
 ## Installation
 
 ```bash
-go get github.com/Chekwube-Manuel/senviok-go-sdk
+go get github.com/senviok/senviok
 ```
 
 ## Quick start
