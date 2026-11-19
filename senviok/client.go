@@ -12,7 +12,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
@@ -134,6 +137,51 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 		return nil, fmt.Errorf("senviok: read response: %w", err)
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, responseError(resp.StatusCode, raw)
+	}
+	return raw, nil
+}
+
+// DoMultipart uploads one attachment using the API's multipart `file` field.
+func (c *Client) DoMultipart(ctx context.Context, path, filename, contentType string, content []byte) ([]byte, error) {
+	if len(content) == 0 || len(content) > 10*1024*1024 {
+		return nil, fmt.Errorf("senviok: attachment must be between 1 byte and 10 MB")
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{"name": "file", "filename": filename}))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return nil, fmt.Errorf("senviok: create multipart attachment: %w", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		return nil, fmt.Errorf("senviok: write multipart attachment: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("senviok: finish multipart attachment: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1"+path, &body)
+	if err != nil {
+		return nil, fmt.Errorf("senviok: build multipart request: %w", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	c.applyAuth(req)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("senviok: read multipart response: %w", err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, responseError(resp.StatusCode, raw)
 	}

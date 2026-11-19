@@ -87,6 +87,28 @@ func main() {
 - `CC`, `BCC`, `ReplyTo` — each accepts a `string` or `[]string`
 - `TemplateID`, `TemplateData`
 - `AddUnsubscribeFooter`, `AddListUnsubscribeHeader` (pointers)
+- `Attachments` (`[]EmailAttachment`) and `AttachmentIDs` (IDs returned by the upload endpoint)
+
+Inline attachments use base64 content or a public HTTPS URL; set exactly one:
+
+```go
+attachment := senviok.NewEmailAttachment("invoice.pdf", pdfBytes, "application/pdf")
+_, err := client.Emails.Send(ctx, senviok.EmailOptions{
+    From: "billing@example.com", To: "customer@example.com",
+    Subject: "Your invoice", Attachments: []senviok.EmailAttachment{attachment},
+})
+```
+
+For larger files, upload each file as multipart field `file` to `POST /v1/emails/attachments`, then send the returned ID in `AttachmentIDs`. The API allows up to 10 files and 10 MB total per email.
+
+```go
+uploaded, err := client.Emails.UploadAttachment(ctx, "invoice.pdf", pdfBytes, "application/pdf")
+if err != nil { return err }
+_, err = client.Emails.Send(ctx, senviok.EmailOptions{
+    From: "billing@example.com", To: "customer@example.com",
+    Subject: "Your invoice", AttachmentIDs: []string{uploaded.ID},
+})
+```
 
 ### Webhook signature verification
 

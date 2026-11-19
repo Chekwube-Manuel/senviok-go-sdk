@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -77,6 +78,64 @@ func TestClientAuthHeader(t *testing.T) {
 	}
 	if gotAuth != "Bearer svk_test_abc" {
 		t.Fatalf("expected Authorization header, got %q", gotAuth)
+	}
+}
+
+func TestUploadThenSendAttachment(t *testing.T) {
+	var uploadSeen, sendSeen bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer svk_test_abc" {
+			t.Errorf("unexpected auth header: %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/emails/attachments" {
+			if err := r.ParseMultipartForm(1024); err != nil {
+				t.Errorf("parse multipart form: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			file, header, err := r.FormFile("file")
+			if err != nil {
+				t.Errorf("read file field: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			defer file.Close()
+			content, _ := io.ReadAll(file)
+			if header.Filename != "invoice.pdf" || string(content) != "pdf" {
+				t.Errorf("unexpected uploaded file %q: %q", header.Filename, content)
+			}
+			uploadSeen = true
+			_, _ = w.Write([]byte(`{"id":"att_1","filename":"invoice.pdf","contentType":"application/pdf","sizeBytes":3,"bucket":"test","key":"test/att_1"}`))
+			return
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode send body: %v", err)
+		}
+		ids, ok := payload["attachmentIds"].([]any)
+		if r.URL.Path != "/v1/emails" || !ok || len(ids) != 1 || ids[0] != "att_1" {
+			t.Errorf("unexpected send request: %s %v", r.URL.Path, payload)
+		}
+		sendSeen = true
+		_, _ = w.Write([]byte(`{"id":"msg_1"}`))
+	}))
+	defer srv.Close()
+
+	client := New("svk_test_abc", WithBaseURL(srv.URL))
+	ctx := context.Background()
+	uploaded, err := client.Emails.UploadAttachment(ctx, "invoice.pdf", []byte("pdf"), "application/pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Emails.Send(ctx, EmailOptions{
+		From: "billing@example.com", To: "customer@example.com", Subject: "Invoice",
+		AttachmentIDs: []string{uploaded.ID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !uploadSeen || !sendSeen {
+		t.Fatalf("expected upload and send requests, got upload=%v send=%v", uploadSeen, sendSeen)
 	}
 }
 

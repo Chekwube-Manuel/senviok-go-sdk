@@ -67,6 +67,15 @@ func (r *EmailsResource) Send(ctx context.Context, opts EmailOptions) (*EmailRes
 	return unmarshal[EmailResponse](raw)
 }
 
+// UploadAttachment uploads one file; pass the returned ID through AttachmentIDs when sending.
+func (r *EmailsResource) UploadAttachment(ctx context.Context, filename string, content []byte, contentType string) (*UploadedEmailAttachment, error) {
+	raw, err := r.client.DoMultipart(ctx, "/emails/attachments", filename, contentType, content)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshal[UploadedEmailAttachment](raw)
+}
+
 // ── SMS ───────────────────────────────────────────────────────────────────
 
 type SMSResource struct{ client *Client }

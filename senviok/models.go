@@ -1,5 +1,7 @@
 package senviok
 
+import "encoding/base64"
+
 // This file mirrors the Python SDK's models.py. Request structs serialize to
 // lowercase camelCase keys (the SDK's to_camel convention); response structs
 // read the API's camelCase JSON fields.
@@ -23,6 +25,33 @@ type EmailOptions struct {
 	TemplateData             map[string]string `json:"templateData,omitempty"`
 	AddUnsubscribeFooter     *bool             `json:"addUnsubscribeFooter,omitempty"`
 	AddListUnsubscribeHeader *bool             `json:"addListUnsubscribeHeader,omitempty"`
+	Attachments              []EmailAttachment `json:"attachments,omitempty"`
+	AttachmentIDs            []string          `json:"attachmentIds,omitempty"`
+}
+
+// EmailAttachment is an outgoing file. Set exactly one of Content (base64)
+// or Path (a public HTTPS URL). ContentID can be used for inline CID images.
+type EmailAttachment struct {
+	Filename    string `json:"filename"`
+	Content     string `json:"content,omitempty"`
+	Path        string `json:"path,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
+	ContentID   string `json:"contentId,omitempty"`
+}
+
+// UploadedEmailAttachment is metadata from the attachment upload endpoint.
+type UploadedEmailAttachment struct {
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	Bucket      string `json:"bucket,omitempty"`
+	Key         string `json:"key,omitempty"`
+}
+
+// NewEmailAttachment encodes raw file bytes as base64 for the Send Email API.
+func NewEmailAttachment(filename string, content []byte, contentType string) EmailAttachment {
+	return EmailAttachment{Filename: filename, Content: base64.StdEncoding.EncodeToString(content), ContentType: contentType}
 }
 
 // SMSRequest is the payload for both the SMS and WhatsApp endpoints.
